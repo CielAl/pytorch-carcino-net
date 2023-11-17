@@ -3,7 +3,7 @@
 import argparse
 import pytorch_lightning as L
 from pytorch_lightning.loggers import CSVLogger
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint
 import os
 import sys
 from carcino_net.reproduce import fix_seed
@@ -16,7 +16,7 @@ from albumentations.pytorch.transforms import ToTensorV2
 print(os.getcwd())
 argv = sys.argv[1:]
 parser = argparse.ArgumentParser(description='Carcino')
-fold = 2
+fold = 3
 parser.add_argument('--num_classes', default=3, type=int,
                     help='number of classes')
 parser.add_argument('--export_folder', default=f'~/running_output/carcino_multi{fold}',

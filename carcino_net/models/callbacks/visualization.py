@@ -19,12 +19,14 @@ DEFAULT_REDUCE_OP = list.__add__  # operator.add
 class OutputWriter(L.callbacks.BasePredictionWriter):
 
     export_dir: Optional[str]
+    target_idx: int
 
-    def __init__(self, export_dir: Optional[str] = None):
+    def __init__(self, export_dir: Optional[str] = None, target_idx: int = -1):
 
         super().__init__(write_interval='batch')
         self.export_dir = export_dir
         self._init_export_dir()
+        self.target_idx = target_idx
 
     @staticmethod
     def path_invalid(export_dir):
@@ -83,7 +85,7 @@ class OutputWriter(L.callbacks.BasePredictionWriter):
         uris: List[str] = prediction['uri']
         img_np = img.detach().permute(0, 2, 3, 1).cpu().numpy()
         mask_gt_np = mask_gt.detach().permute(0, 2, 3, 1).squeeze(-1).cpu().numpy()
-        scores_np = scores.detach().cpu()[:, -1, :, :].cpu().numpy()
+        scores_np = scores.detach().cpu()[:, self.target_idx, :, :].cpu().numpy()
 
         for i, m, s, fname in zip(img_np, mask_gt_np, scores_np, uris):
             fpart = file_part(fname)

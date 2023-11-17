@@ -16,7 +16,7 @@ from albumentations.pytorch.transforms import ToTensorV2
 print(os.getcwd())
 argv = sys.argv[1:]
 parser = argparse.ArgumentParser(description='Carcino')
-fold = 3
+fold = 4
 parser.add_argument('--num_classes', default=3, type=int,
                     help='number of classes')
 parser.add_argument('--export_folder', default=f'~/running_output/carcino_multi{fold}',

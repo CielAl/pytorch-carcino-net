@@ -7,7 +7,7 @@ from typing import Sequence
 # from functools import partial
 from carcino_net.models.loss import DiceLoss, focal_loss_factory
 from carcino_net.dataset.dataclass import ModelInput, ModelOutput
-
+import torch
 
 softmax = nn.Softmax(dim=1)
 
@@ -70,6 +70,17 @@ class CarcinoLightning(BaseLightningModule):
     def forward(self, x):
         return self.model(x)
 
+    def _step_helper(self,  batch: ModelInput, phase_name: PHASE_STR):
+        images = batch['img']
+        masks = batch['mask']  # .long()
+        # obtain the projection
+        # N x class x H x W
+        logits = self(images)
+        # use softmax score as input
+        scores = softmax(logits)
+        uri = batch['uri']
+        return images, masks, logits, scores, uri
+
     def _step(self, batch: ModelInput, phase_name: PHASE_STR):
         """Step function helper shared by training and validation steps which computes the logits and log the loss.
 
@@ -81,15 +92,17 @@ class CarcinoLightning(BaseLightningModule):
             NetOutput containing loss, logits (final-layer output) and true labels.
         """
         # stacked view of original and augmented images
-        images = batch['img']
-        masks = batch['mask']  # .long()
+        # images = batch['img']
+        # masks = batch['mask']  # .long()
         # obtain the projection
         # N x class x H x W
-        logits = self(images)
+        # logits = self(images)
         # use softmax score as input
+        images, masks, logits, scores, uri = self._step_helper(batch=batch, phase_name=phase_name)
+
         focal_loss = self.criteria_focal(logits, masks.squeeze().long())
 
-        scores = softmax(logits)
+        # scores = softmax(logits)
         dice_loss = self.criteria_dice(logits, masks.long())
         loss_all = focal_loss + dice_loss
 
@@ -97,7 +110,7 @@ class CarcinoLightning(BaseLightningModule):
         self.loss_avg.update(loss_all)
         self.dice_coeff_dbg.update(1 - dice_loss)
         self.f1_meter.update(logits, masks.long())
-        uri = batch['uri']
+        # uri = batch['uri']
 
         out = ModelOutput(loss=loss_all, logits=logits, mask=masks, uri=uri, pred_prob=scores, img=images)
         self.log_on_final_batch(phase_name)
@@ -120,4 +133,8 @@ class CarcinoLightning(BaseLightningModule):
         self.print_newln()
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        return self._step(batch, 'predict')
+        images, masks, logits, scores, uri = self._step_helper(batch=batch, phase_name='predict')
+
+        out = ModelOutput(loss=torch.zeros(1), logits=logits, mask=masks, uri=uri, pred_prob=scores, img=images)
+        self.log_on_final_batch('predict')
+        return out

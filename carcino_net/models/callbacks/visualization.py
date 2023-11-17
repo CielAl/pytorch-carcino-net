@@ -10,7 +10,7 @@ from lightning_utilities.core.apply_func import apply_to_collection
 import pickle
 from carcino_net.dataset.dataclass import ModelOutput
 from carcino_net.dataset.utils import file_part
-from carcino_net.visualization import export_showcase
+from carcino_net.visualization import export_showcase, pred_to_label, to_instance_map
 # import operator
 
 DEFAULT_REDUCE_OP = list.__add__  # operator.add
@@ -83,15 +83,23 @@ class OutputWriter(L.callbacks.BasePredictionWriter):
         # B num_class H W [0., 1.]
         scores = prediction['pred_prob']
         uris: List[str] = prediction['uri']
+        # to B H W C
         img_np = img.detach().permute(0, 2, 3, 1).cpu().numpy()
-        mask_gt_np = mask_gt.detach().permute(0, 2, 3, 1).squeeze(-1).cpu().numpy()
-        # todo probably use colormap + predicted labels for multiclass
-        scores_np = scores.detach().cpu()[:, self.target_idx, :, :].cpu().numpy()
+        # from B H W to B H W C
 
-        for i, m, s, fname in zip(img_np, mask_gt_np, scores_np, uris):
+        label_gt_np = mask_gt.detach().cpu().numpy()
+        # todo probably use colormap + predicted labels for multiclass
+        scores_np = scores.detach().cpu().permute(0, 2, 3, 1).numpy()  # [:, self.target_idx, :, :]
+
+        pred_label_np = pred_to_label(scores_np, class_axis=-1)
+
+        for i, m, s, fname in zip(img_np, label_gt_np, pred_label_np, uris):
             fpart = file_part(fname)
             dest = os.path.join(self.export_dir, f"{fpart}_mask.png")
-            export_showcase(image=i, ground_truth_mask=m, pred_mask=s, dest_name=dest)
+            pred_inst = to_instance_map(s, cmap='tab20')
+            gt_inst = to_instance_map(m, cmap='tab20')
+
+            export_showcase(image=i, ground_truth_mask=gt_inst, pred_mask=pred_inst, dest_name=dest)
 
 
 

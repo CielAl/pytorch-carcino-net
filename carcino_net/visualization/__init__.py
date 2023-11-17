@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import List, Optional
+from typing import List, Optional, Callable
 from skimage.util import img_as_ubyte
+from matplotlib.pyplot import get_cmap
 
 
 def export_plots(images: List[np.ndarray], titles: List[str], dest_name: Optional[str] = None):
@@ -24,3 +25,16 @@ def export_showcase(image: np.ndarray,
     images = [image, ground_truth_mask, pred_mask]
     titles = ['input', 'ground truth', 'prediction']
     export_plots(images, titles, dest_name)
+
+
+def pred_to_label(prob_mask: np.ndarray, class_axis: int = -1):
+    return prob_mask.argmax(axis=class_axis)
+
+
+def to_instance_map_helper(label_mask: np.ndarray, cmap_func: Callable):
+    return cmap_func(label_mask)[..., 0:3]
+
+
+def to_instance_map(label_mask: np.ndarray, cmap: str = 'tab20'):
+    cmap_func = get_cmap(cmap)
+    return to_instance_map_helper(label_mask, cmap_func=cmap_func)

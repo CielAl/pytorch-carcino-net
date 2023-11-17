@@ -18,33 +18,37 @@ from carcino_net.models.callbacks.visualization import OutputWriter
 
 print(os.getcwd())
 argv = sys.argv[1:]
+fold=3
 parser = argparse.ArgumentParser(description='Carcino Binary')
 parser.add_argument('--num_classes', default=3, type=int,
                     help='number of classes')
-parser.add_argument('--best_model', default='Z:/UTAH/running_output/'
-                                            'carcino/lightning_logs/version_0/checkpoints/'
-                                            'epoch=21-step=3410.ckpt',
+parser.add_argument('--train_sheet_dir', default=f'/tmp/ramdisk/SICAPV2Fixed/partition/Validation'
+                                                 f'/Val{fold}/Train.xlsx',
+                    help='Location for the training split')
+parser.add_argument('--val_sheet_dir', default='/tmp/ramdisk/SICAPV2Fixed/partition/Validation'
+                                               f'/Val{fold}/Test.xlsx',
+                    help='Location for the val split')
+
+parser.add_argument('--best_model', default='/mnt/z/UTAH/running_output/'
+                                            f'carcino_multi{fold}/lightning_logs/version_2/checkpoints/'
+                                            'epoch=42-step=5461.ckpt',
                     help='Location of the checkpoints of the best model')
-parser.add_argument('--export_folder', default='Z:/UTAH/running_output/'
-                                               'carcino/visualization',
+parser.add_argument('--export_folder', default='/mnt/z/UTAH/running_output/'
+                                               'carcino_multi_showcase/visualization',
                     help='Viz export location')
 
-parser.add_argument('--image_dir', default='W:/SICAPV2Fixed/images/',
+parser.add_argument('--image_dir', default='/tmp/ramdisk/SICAPV2Fixed/images/',
                     help='Location for the downloaded example datasets')
 
 parser.add_argument('--image_ext', default='.jpg',
                     help='extension of image files')
 
-parser.add_argument('--mask_dir', default='W:/SICAPV2Fixed/masks_binary/',
+parser.add_argument('--mask_dir', default='/tmp/ramdisk/SICAPV2Fixed/masks_mul/',
                     help='Location for the downloaded example datasets')
 
 parser.add_argument('--mask_ext', default='.png',
                     help='extension of mask files')
 
-parser.add_argument('--train_sheet_dir', default='W:/SICAPV2Fixed/partition/Test/Train.xlsx',
-                    help='Location for the training split')
-parser.add_argument('--val_sheet_dir', default='W:/SICAPV2Fixed/partition/Test/Test.xlsx',
-                    help='Location for the val split')
 
 # ------------ dataloader
 parser.add_argument('--num_workers', default=8, type=int,
@@ -95,8 +99,8 @@ fix_seed(seed, True, cudnn_deterministic=True)
 
 if __name__ == "__main__":
     # dbg
-    opt.num_workers = 0
-    opt.gpu_index = [0]
+    # opt.num_workers = 0
+    # opt.gpu_index = [0]
     # file path curation
     export_folder = opt.export_folder
     os.makedirs(export_folder, exist_ok=True)

@@ -85,6 +85,7 @@ class OutputWriter(L.callbacks.BasePredictionWriter):
         uris: List[str] = prediction['uri']
         img_np = img.detach().permute(0, 2, 3, 1).cpu().numpy()
         mask_gt_np = mask_gt.detach().permute(0, 2, 3, 1).squeeze(-1).cpu().numpy()
+        # todo probably use colormap + predicted labels for multiclass
         scores_np = scores.detach().cpu()[:, self.target_idx, :, :].cpu().numpy()
 
         for i, m, s, fname in zip(img_np, mask_gt_np, scores_np, uris):

@@ -14,6 +14,9 @@ class ModelOutput(TypedDict):
 
     loss: torch.Tensor
     logits: torch.Tensor
+    img:  Union[np.ndarray, torch.Tensor]
+    pred_prob: torch.Tensor
     mask: torch.Tensor
     uri: Union[str, List[str]]
+
 

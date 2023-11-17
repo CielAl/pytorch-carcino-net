@@ -1,7 +1,7 @@
 import os
 
 import numpy as np
-from typing import List
+from typing import List, Sequence
 
 
 def top_k_pixel_values(image: np.ndarray, k: int):
@@ -58,3 +58,11 @@ def filter_pixel_values(image: np.ndarray, valid_labels: List[int]):
 
 def file_part(fname: str):
     return os.path.splitext(os.path.basename(fname))[0]
+
+
+def mask_pixel_map(mask: np.ndarray, pixels_to_map: Sequence, pixel_map: dict) -> np.ndarray:
+    # todo check if the map routes is acyclic
+    for pix in pixels_to_map:
+        # this is under assumption that all pixel values are larger than group num
+        mask[mask == pix] = pixel_map[pix]
+    return mask

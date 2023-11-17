@@ -18,6 +18,7 @@ class SicapDataModule(L.LightningDataModule):
     train_transforms: Optional[Callable]
     val_transforms: Optional[Callable]
 
+
     def __init__(self,
                  train_sheet_dir: str,
                  val_sheet_dir: str,
@@ -48,6 +49,7 @@ class SicapDataModule(L.LightningDataModule):
         self.train_pair = train_pair
         self.val_transforms = val_transforms if val_transforms is not None else ToTensor()
         self.val_pair = val_pair
+
 
     @staticmethod
     def _fnames_from_sheet(sheet: pd.DataFrame, folder: str, ext: str, col_name: str = 'image_name',
@@ -84,6 +86,16 @@ class SicapDataModule(L.LightningDataModule):
                           persistent_workers=self.num_workers > 0)
 
     def val_dataloader(self):
+        return DataLoader(dataset=self.val_dataset, batch_size=self.batch_size, shuffle=False,
+                          num_workers=self.num_workers, drop_last=False, pin_memory=True,
+                          persistent_workers=self.num_workers > 0)
+
+    def test_dataloader(self):
+        return DataLoader(dataset=self.val_dataset, batch_size=self.batch_size, shuffle=False,
+                          num_workers=self.num_workers, drop_last=False, pin_memory=True,
+                          persistent_workers=self.num_workers > 0)
+
+    def predict_dataloader(self):
         return DataLoader(dataset=self.val_dataset, batch_size=self.batch_size, shuffle=False,
                           num_workers=self.num_workers, drop_last=False, pin_memory=True,
                           persistent_workers=self.num_workers > 0)

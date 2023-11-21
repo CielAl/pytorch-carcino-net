@@ -144,7 +144,7 @@ if __name__ == "__main__":
                         strategy='ddp_find_unused_parameters_true',
                         num_sanity_val_steps=0, max_epochs=opt.num_epochs, enable_progress_bar=True,
                         default_root_dir=export_folder, logger=csv_logger, precision=opt.precision,
-                        use_distributed_sampler=True, sync_batchnorm=len(opt.gpu_index) > 0,
+                        use_distributed_sampler=len(opt.gpu_index) > 1, sync_batchnorm=len(opt.gpu_index) > 1,
                         log_every_n_steps=opt.log_every_n_steps)
     csv_logger.log_hyperparams(opt)
     trainer.fit(lightning_model, datamodule=data_module)

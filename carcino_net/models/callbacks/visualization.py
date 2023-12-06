@@ -3,7 +3,7 @@ import os
 import pytorch_lightning as L
 from carcino_net.dataset.dataclass import ModelOutput
 from carcino_net.dataset.utils import file_part
-from carcino_net.visualization import export_showcase, pred_to_label, to_instance_map
+from carcino_net.visualization.masks import export_showcase, pred_to_label, to_instance_map
 import numpy as np
 import imageio
 

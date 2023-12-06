@@ -1,4 +1,4 @@
-"""Train the Carcino-Net with binaralized SICAPV2 data for high grade vs. rest.
+"""Validate the Carcino-Net with binaralized SICAPV2 data for high grade vs. low grade vs. negative.
 """
 import argparse
 import pytorch_lightning as L
@@ -16,9 +16,9 @@ from carcino_net.models.callbacks.visualization import VisualizeWriter
 
 print(os.getcwd())
 argv = sys.argv[1:]
-fold=3
+fold=4
 parser = argparse.ArgumentParser(description='Carcino Prediction')
-parser.add_argument('--write_mode', type=int, default=7,
+parser.add_argument('--write_mode', type=int, default=2,
                     help='mode of exportation as 3-bit integer.'
                     'Range from 0 - 7.'
                     ' - The 1st bit: write showcase/side-by-side with colormap'
@@ -36,11 +36,11 @@ parser.add_argument('--val_sheet_dir', default='W:/SICAPV2Fixed/partition/Valida
                     help='Location for the val split')
 
 parser.add_argument('--best_model', default='Z:/UTAH/running_output/'
-                                            f'carcino_multi{fold}/lightning_logs/version_2/checkpoints/'
-                                            'epoch=42-step=5461.ckpt',
+                                            f'carcino_multi{fold}/lightning_logs/version_0/checkpoints/'
+                                            'epoch=151-step=15200.ckpt',
                     help='Location of the checkpoints of the best model')
 parser.add_argument('--export_folder', default='Z:/UTAH/running_output/'
-                                               'carcino_multi_showcase/visualization_dbg',
+                                               f'carcino_multi_showcase/visualization_{fold}',
                     help='Viz export location')
 
 parser.add_argument('--image_dir', default='W:/SICAPV2Fixed/images/',

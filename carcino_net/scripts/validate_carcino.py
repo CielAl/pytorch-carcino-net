@@ -6,7 +6,7 @@ import os
 import sys
 from carcino_net.reproduce import fix_seed
 from carcino_net.models.lightning_module.carcino_wrapper import CarcinoLightning
-from carcino_net.models.backbone.carcino_arch import CarcinoNet
+from carcino_net.models.backbone.carcino_arch import GenericUNet
 from carcino_net.dataset.lit_data import SicapDataModule
 import albumentations as A
 import torch
@@ -127,9 +127,9 @@ if __name__ == "__main__":
                                   mask_ext=opt.mask_ext, seed=opt.seed)
 
     data_module.setup("")
-    base_model = CarcinoNet.build(n_out=opt.num_classes, img_size=(opt.patch_size, opt.patch_size),
-                                  pool_sizes=opt.pool_sizes,
-                                  skip_type=opt.skip_type)
+    base_model = GenericUNet.build_carcino(n_out=opt.num_classes, img_size=(opt.patch_size, opt.patch_size),
+                                           pool_sizes=opt.pool_sizes,
+                                           skip_type=opt.skip_type)
 
     lightning_model = CarcinoLightning(base_model, focal_alpha=[1 for _ in range(opt.num_classes)],
                                        focal_gamma=1, num_classes=opt.num_classes,

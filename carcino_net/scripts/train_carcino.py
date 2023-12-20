@@ -8,20 +8,20 @@ import os
 import sys
 from carcino_net.reproduce import fix_seed
 from carcino_net.models.lightning_module.carcino_wrapper import CarcinoLightning
-from carcino_net.models.backbone.carcino_arch import CarcinoNet
+from carcino_net.models.backbone.carcino_arch import GenericUNet
 from carcino_net.dataset.lit_data import SicapDataModule
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
-
+from fastai.layers import NormType
 print(os.getcwd())
 argv = sys.argv[1:]
 parser = argparse.ArgumentParser(description='Carcino')
 fold = 4
 parser.add_argument('--num_classes', default=3, type=int,
                     help='number of classes')
-parser.add_argument('--export_folder', default=f'~/running_output/carcino_multi{fold}',
+parser.add_argument('--export_folder', default=f'/mnt/z/UTAH/running_output/debug_carcino_multi{fold}',
                     help='Export location for logs and model checkpoints')
-
+# /tmp/ramdisk/
 parser.add_argument('--train_sheet_dir', default=f'/tmp/ramdisk/SICAPV2Fixed/partition/Validation'
                                                  f'/Val{fold}/Train.xlsx',
                     help='Location for the training split')
@@ -127,9 +127,10 @@ if __name__ == "__main__":
                                   mask_ext=opt.mask_ext, seed=opt.seed)
 
     data_module.setup("")
-    base_model = CarcinoNet.build(n_out=opt.num_classes, img_size=(opt.patch_size, opt.patch_size),
-                                  pool_sizes=opt.pool_sizes,
-                                  skip_type=opt.skip_type)
+    # use resnet50 backbone + PPM + addition as skip connection = carcino net
+    base_model = GenericUNet.build_carcino(n_out=opt.num_classes, img_size=(opt.patch_size, opt.patch_size),
+                                           pool_sizes=opt.pool_sizes, norm_type=NormType.Batch,
+                                           skip_type=opt.skip_type)
 
     lightning_model = CarcinoLightning(base_model, num_classes=opt.num_classes,
                                        focal_alpha=opt.focal_alpha,

@@ -1,12 +1,14 @@
 from torch import nn
-from fastai.callback.hook import model_sizes, hook_outputs, dummy_eval
+import torch
+from fastai.callback.hook import model_sizes, hook_outputs, dummy_eval, Hooks, Hook
 import numpy as np
 from fastai.torch_basics import ConvLayer, BatchNorm, SigmoidRange, ToTensorBase,\
     PixelShuffle_ICNR, apply_init, SequentialEx
 from fastai.vision.models.unet import ResizeToOrig
 from carcino_net.models.backbone.helper import SpatialPyramidPooling, SkipBlock, SKIP_TYPE
-from typing import List, Tuple
+from typing import List, Tuple, Callable, Optional
 from torchvision.models.resnet import resnet50
+from fastai.layers import NormType
 
 
 def _get_sz_change_idxs(sizes):
@@ -15,6 +17,62 @@ def _get_sz_change_idxs(sizes):
     feature_szs = [size[-1] for size in sizes]
     sz_chg_idxs = list(np.where(np.array(feature_szs[:-1]) != np.array(feature_szs[1:]))[0])
     return sz_chg_idxs
+
+
+def decoder_with_skips(dummy_tensor: torch.Tensor, *,
+                       layer_hooks: Hooks | List[Hook],
+                       size_change_indices_bot_to_top: List[int],
+                       sizes: List,
+                       blur: bool,
+                       blur_final: bool,
+                       norm_type: NormType,
+                       skip_type: SKIP_TYPE,
+                       skip_bottleneck: bool,
+                       act_cls: Callable,
+                       init: Callable,
+                       out_layers: Optional[List],
+                       **kwargs):
+    """Helper function to create decoder with skip connection
+
+    Args:
+        dummy_tensor: dummy tensor output of previous layers
+        layer_hooks:
+        size_change_indices_bot_to_top:
+        sizes:
+        blur:
+        blur_final:
+        norm_type:
+        skip_type:
+        skip_bottleneck:
+        act_cls:
+        init:
+        out_layers:
+        **kwargs:
+
+    Returns:
+
+    """
+    # if not given then create a new list.
+    if out_layers is None:
+        out_layers = []
+
+    # start from the deepest level block
+    for i, idx in enumerate(size_change_indices_bot_to_top):
+        not_final = i != len(size_change_indices_bot_to_top) - 1
+        # input of upsampling / encoding path target size
+        up_in_c, x_in_c = int(dummy_tensor.shape[1]), int(sizes[idx][1])
+        do_blur = blur and (not_final or blur_final)
+        # would be too memory intensive to add attention here
+        # sa = self_attention and (i==len(size_change_indices)-3)
+
+        skip_block = SkipBlock(up_in_c, x_in_c, layer_hooks[i], final_div=not_final, blur=do_blur,
+                               act_cls=act_cls, init=init, norm_type=norm_type, skip_type=skip_type,
+                               bottleneck=skip_bottleneck,
+                               **kwargs).eval()
+        out_layers.append(skip_block)
+        dummy_tensor = skip_block(dummy_tensor)
+
+    return out_layers
 
 
 class CarcinoNet(SequentialEx):
@@ -39,8 +97,8 @@ class CarcinoNet(SequentialEx):
 
         imsize = img_size
         sizes = model_sizes(encoder, size=imsize)
-        size_change_indices = list(reversed(_get_sz_change_idxs(sizes)))
-        self.sfs = hook_outputs([encoder[i] for i in size_change_indices], detach=False)
+        size_change_indices_bot_to_top = list(reversed(_get_sz_change_idxs(sizes)))
+        self.sfs = hook_outputs([encoder[i] for i in size_change_indices_bot_to_top], detach=False)
         x = dummy_eval(encoder, imsize).detach()
 
         # channel size
@@ -61,8 +119,8 @@ class CarcinoNet(SequentialEx):
         layers = [encoder, BatchNorm(ni), nn.ReLU(), ppm, reduction, middle_conv]
 
         # print(sizes)
-        for i, idx in enumerate(size_change_indices):
-            not_final = i != len(size_change_indices)-1
+        for i, idx in enumerate(size_change_indices_bot_to_top):
+            not_final = i != len(size_change_indices_bot_to_top)-1
             # input of upsampling / encoding path target size
             up_in_c, x_in_c = int(x.shape[1]), int(sizes[idx][1])
             do_blur = blur and (not_final or blur_final)
@@ -107,6 +165,6 @@ class CarcinoNet(SequentialEx):
         encoder = nn.Sequential(*list(resnet50().children())[:-2])
         return cls(encoder,
                    n_out=n_out, img_size=img_size, pool_sizes=pool_sizes,
-                   ppm_flatten=ppm_flatten, blur=blur, blur_final=blur_final,
+                   ppm_flatten=ppm_flatten, blur=blur, blur_final=blur_final, norm_type=norm_type,
                    y_range=y_range, act_cls=act_cls, init=init, skip_type=skip_type, skip_bottleneck=skip_bottleneck,
                    **kwargs)

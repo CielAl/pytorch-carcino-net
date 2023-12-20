@@ -1,14 +1,35 @@
 from typing import List, Callable, Optional, Literal
 import torch
-from fastai.layers import PixelShuffle_ICNR, BatchNorm, ConvLayer
+from fastai.layers import PixelShuffle_ICNR, BatchNorm, ConvLayer, NormType
 from fastai.torch_core import Module, apply_init
 from torch import nn
 from torch.nn import functional as F
+from fastai.callback.hook import Hook, Hooks
 
 
 SKIP_CAT = Literal['cat']
 SKIP_SUM = Literal['sum']
 SKIP_TYPE = Literal[SKIP_CAT, SKIP_SUM]
+
+
+def valid_add(tensor1, tensor2):
+    """Check if two  tensors can be added (e.g., same shape or broadcast)
+    """
+    shape1 = tensor1.shape
+    shape2 = tensor2.shape
+
+    # different dim and neither is one
+    for dim1, dim2 in zip(shape1[::-1], shape2[::-1]):
+        if dim1 != dim2 and dim1 != 1 and dim2 != 1:
+            return False
+
+    # different number of dimensions
+    if len(shape1) != len(shape2):
+        shorter, longer = sorted([shape1, shape2], key=len)
+        if any(dim != 1 for dim in longer[:len(longer) - len(shorter)]):
+            return False
+
+    return True
 
 
 class ResizeConv(nn.Module):
@@ -118,16 +139,20 @@ class SkipBlock(Module):
         nf = ni if final_div else ni // 2
         return ni, nf
 
-    def __init__(self, up_in_c, x_in_c, hook, final_div=True, blur=False, act_cls=nn.ReLU,
-                 init=nn.init.kaiming_normal_, norm_type=None,
+    def __init__(self,
+                 up_in_c: int, x_in_c: int,
+                 hook: Hook | Hooks | List[Hook],
+                 final_div: bool = True, blur: bool = False,
+                 act_cls: Callable = nn.ReLU,
+                 init: Callable = nn.init.kaiming_normal_, norm_type: Optional[NormType] = None,
                  bottleneck: bool = False,
                  skip_type: SKIP_TYPE = 'sum',
                  **kwargs):
         super().__init__()
         self.skip_type = skip_type
-        self.hook = hook
-        self.shuf = PixelShuffle_ICNR(up_in_c, up_in_c//2 if final_div else up_in_c // 4,
-                                      blur=blur, act_cls=act_cls, norm_type=norm_type)
+        self.all_hook = hook
+        self.pixel_shuffle = PixelShuffle_ICNR(up_in_c, up_in_c // 2 if final_div else up_in_c // 4,
+                                               blur=blur, act_cls=act_cls, norm_type=norm_type)
         self.bn = BatchNorm(x_in_c)
 
         ni, nf = SkipBlock.channel_size(up_in_c, x_in_c, final_div, skip_type)
@@ -139,22 +164,65 @@ class SkipBlock(Module):
         apply_init(nn.Sequential(self.conv1, self.conv2), init)
 
     @staticmethod
-    def _skip_connect(tensor1, tensor2, skip_type: SKIP_TYPE = 'sum'):
+    def _skip_connect(tensor1: torch.Tensor, tensor2, skip_type: SKIP_TYPE = 'sum'):
         match skip_type:
             case 'sum':
+                assert valid_add(tensor1, tensor2)
                 return tensor1 + tensor2
             case 'cat':
                 return torch.cat([tensor1, tensor2], dim=1)
             case _:
                 raise ValueError(f"Invalid skip_type: {skip_type}")
 
+    def align_hook_out(self):
+        ...
+
+    @staticmethod
+    def hook_out_helper(hook: Hook):
+        assert isinstance(hook, Hook)
+        return hook.stored
+
+    @staticmethod
+    def hook_size_collation_inplace(tensor_list: List[torch.Tensor], flag: bool):
+        """
+        """
+        if (not flag) or tensor_list is None or len(tensor_list) == 0:
+            return tensor_list
+
+        # HW
+        ref_shape = tensor_list[0].shape[-2:]
+
+        for idx, tensor in enumerate(tensor_list):
+            if tensor.shape[-2:] != ref_shape:
+                # Resize the tensor to match the reference shape
+                tensor_list[idx] = F.interpolate(tensor, size=ref_shape, mode='bilinear', align_corners=False)
+
+        return tensor_list
+
+    @staticmethod
+    def get_hook_out(hook: Hook | List[Hook] | Hooks, skip_type: Optional[SKIP_TYPE] = None) -> torch.Tensor:
+        if isinstance(hook, Hook):
+            return SkipBlock.hook_out_helper(hook)
+        assert skip_type is not None
+        # if a list is encountered, then reduce the outcome first
+        out_list = [SkipBlock.hook_out_helper(x) for x in hook]
+        # disabled for now - for debugging: check if the activation in hooks on the same level have the same HW
+        out_list = SkipBlock.hook_size_collation_inplace(out_list, flag=False)
+        match skip_type:
+            case 'sum':
+                return sum(out_list)
+            case 'cat':
+                return torch.cat(out_list, dim=1)
+            case _:
+                raise NotImplementedError(f"{skip_type}")
+
     def forward(self, up_in):
-        s = self.hook.stored
-        up_out = self.shuf(up_in)
-        ssh = s.shape[-2:]
-        if ssh != up_out.shape[-2:]:
-            up_out = F.interpolate(up_out, s.shape[-2:], mode='nearest')
-        cat_x = SkipBlock._skip_connect(up_out, self.bn(s))
+        hook_out = SkipBlock.get_hook_out(self.all_hook, self.skip_type)  # self.hook.stored
+        up_out = self.pixel_shuffle(up_in)
+        skip_shape = hook_out.shape[-2:]
+        if skip_shape != up_out.shape[-2:]:
+            up_out = F.interpolate(up_out, hook_out.shape[-2:], mode='nearest')
+        cat_x = SkipBlock._skip_connect(up_out, self.bn(hook_out), self.skip_type)
         cat_x = self.relu(cat_x)
         if self.bottle_neck:
             return self.conv2(self.conv1(cat_x))
